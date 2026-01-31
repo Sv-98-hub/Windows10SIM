@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Windows 10 Simulator</title>
+    <style>
+        :root {
+            --taskbar-bg: rgba(20, 20, 20, 0.85);
+            --win-blue: #0078d7;
+            --win-border: #1c1c1c;
+            --win-hover: rgba(255, 255, 255, 0.15);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            overflow: hidden;
+            background: url('https://wallpapercave.com/wp/wp4504149.png') no-repeat center center fixed;
+            background-size: cover;
+            user-select: none;
+            touch-action: none;
+            transition: background-image 0.5s ease-in-out;
+        }
+
+        /* Desktop Container */
+        #desktop {
+            position: relative;
+            width: 100vw;
+            height: calc(100vh - 40px);
+            z-index: 1;
+        }
+
+        .desktop-icons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 15px;
+            width: fit-content;
+        }
+
+        .icon {
+            width: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            color: white;
+            padding: 8px 0;
+            border: 1px solid transparent;
+            transition: 0.1s;
+            cursor: pointer;
+        }
+
+        .icon:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .icon svg, .icon img {
+            width: 42px;
+            height: 42px;
+            margin-bottom: 4px;
+        }
+
+        .icon span {
+            font-size: 11px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.9);
+        }
+
+        /* Windows */
+        .window {
+            position: absolute;
+            background: #f0f0f0;
+            border: 1px solid #707070;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            display: none;
+            flex-direction: column;
+            min-width: 300px;
+            z-index: 10;
+            overflow: hidden;
+        }
+
+        .window-header {
+            height: 32px;
+            background: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 0 0 10px;
+            cursor: default;
+            flex-shrink: 0;
+        }
+
+        .window-title {
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #333;
+        }
+
+        .window-controls {
+            display: flex;
+            height: 100%;
+        }
+
+        .control-btn {
+            width: 45px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+            font-size: 14px;
+        }
+
+        .control-btn:hover { background: #e5e5e5; }
+        .control-btn.close:hover { background: #e81123; color: white; }
+
+        /* Settings / Wallpaper Picker */
+        .settings-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            color: #333;
+            background: #fff;
+        }
+
+        .wallpaper-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .wp-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .wp-thumb {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background-size: cover;
+            background-position: center;
+            border: 3px solid #eee;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .wp-thumb:hover {
+            transform: scale(1.02);
+            border-color: var(--win-blue);
+        }
+
+        .wp-thumb.active {
+            border-color: var(--win-blue);
+        }
+
+        /* Taskbar */
+        #taskbar {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            height: 40px;
+            background: var(--taskbar-bg);
+            display: flex;
+            align-items: center;
+            z-index: 9999;
+            backdrop-filter: blur(12px);
+        }
+
+        .start-btn {
+            width: 48px;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .start-btn:hover { background: var(--win-hover); }
+
+        .system-tray {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            height: 100%;
+            padding: 0 15px;
+            color: white;
+            font-size: 12px;
+            text-align: right;
+            gap: 10px;
+        }
+
+        /* Virtual Cursor */
+        #virtual-cursor {
+            width: 20px;
+            height: auto;
+            position: fixed;
+            pointer-events: none;
+            z-index: 1000000;
+            display: none;
+        }
+
+        /* Toast */
+        #toast {
+            position: fixed;
+            bottom: 60px;
+            right: 20px;
+            background: #2b2b2b;
+            color: white;
+            padding: 12px 24px;
+            border-left: 4px solid var(--win-blue);
+            display: none;
+            z-index: 10000;
+            font-size: 13px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="desktop">
+        <div class="desktop-icons">
+            <div class="icon" onclick="openApp('notepad')">
+                <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path fill="#F5F5F5" d="M37 43H11c-1.1 0-2-.9-2-2V7c0-1.1.9-2 2-2h20l8 8v28c0 1.1-.9 2-2 2z"/><path fill="#CFD8DC" d="M31 5l8 8h-8z"/><path fill="#2196F3" d="M15 17h18v2H15zm0 6h18v2H15zm0 6h18v2H15zm0 6h10v2H15z"/></svg>
+                <span>Notepad</span>
+            </div>
+            <div class="icon" onclick="openApp('settings')">
+                <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path fill="#78909C" d="M42,26v-4h-4.8c-0.3-1.5-0.9-2.8-1.7-4.1l3.4-3.4l-2.8-2.8l-3.4,3.4c-1.2-0.8-2.6-1.4-4.1-1.7V4h-4v4.8c-1.5,0.3-2.8,0.9-4.1,1.7l-3.4-3.4l-2.8,2.8l3.4,3.4c-0.8,1.2-1.4,2.6-1.7,4.1H6v4h4.8c0.3,1.5,0.9,2.8,1.7,4.1l-3.4,3.4l2.8,2.8l3.4-3.4c1.2,0.8,2.6,1.4,4.1,1.7V44h4v-4.8c1.5-0.3,2.8-0.9,4.1-1.7l3.4,3.4l2.8-2.8l-3.4-3.4c0.8-1.2,1.4-2.6,1.7-4.1H42z M24,30c-3.3,0-6-2.7-6-6s2.7-6,6-6s6,2.7,6,6S27.3,30,24,30z"/></svg>
+                <span>Settings</span>
+            </div>
+        </div>
+
+        <!-- Settings Window -->
+        <div id="win-settings" class="window" style="width: 80%; max-width: 600px; height: 500px; top: 50px; left: 50px;">
+            <div class="window-header" onmousedown="initDrag(event, 'win-settings')" ontouchstart="initDrag(event, 'win-settings')">
+                <div class="window-title">Settings</div>
+                <div class="window-controls">
+                    <div class="control-btn close" onclick="closeApp('settings')">✕</div>
+                </div>
+            </div>
+            <div class="settings-content">
+                <h2 style="margin-top:0; font-weight: normal;">Personalization</h2>
+                <p style="color: #666;">Background</p>
+                <div id="active-wp-preview" style="width: 100%; height: 180px; background-size: cover; background-position: center; border-radius: 4px; margin-bottom: 20px; box-shadow: inset 0 0 10px rgba(0,0,0,0.1); border: 1px solid #ddd;"></div>
+                
+                <p>Choose your picture</p>
+                <div class="wallpaper-grid">
+                    <!-- Standard Hero -->
+                    <div class="wp-item">
+                        <div class="wp-thumb" style="background-image: url('https://wallpapercave.com/wp/wp4504149.png');" onclick="setWallpaper('https://wallpapercave.com/wp/wp4504149.png')"></div>
+                    </div>
+                    <!-- Hero 4K Original -->
+                    <div class="wp-item">
+                        <div class="wp-thumb" style="background-image: url('https://images.hdqwalls.com/download/windows-10-original-4k-i9-2560x1440.jpg');" onclick="setWallpaper('https://images.hdqwalls.com/download/windows-10-original-4k-i9-2560x1440.jpg')"></div>
+                    </div>
+                    <!-- Light Theme -->
+                    <div class="wp-item">
+                        <div class="wp-thumb" style="background-image: url('https://images.hdqwalls.com/download/windows-10-light-theme-stock-4k-9m-2560x1440.jpg');" onclick="setWallpaper('https://images.hdqwalls.com/download/windows-10-light-theme-stock-4k-9m-2560x1440.jpg')"></div>
+                    </div>
+                    <!-- Landscape Scenic -->
+                    <div class="wp-item">
+                        <div class="wp-thumb" style="background-image: url('https://wallpaperaccess.com/full/1155011.jpg');" onclick="setWallpaper('https://wallpaperaccess.com/full/1155011.jpg')"></div>
+                    </div>
+                    <!-- Dark Abstract -->
+                    <div class="wp-item">
+                        <div class="wp-thumb" style="background-image: url('https://wallpaperaccess.com/full/1560931.jpg');" onclick="setWallpaper('https://wallpaperaccess.com/full/1560931.jpg')"></div>
+                    </div>
+                    <!-- Classic Beach -->
+                    <div class="wp-item">
+                        <div class="wp-thumb" style="background-image: url('https://wallpapercave.com/wp/wp4013142.jpg');" onclick="setWallpaper('https://wallpapercave.com/wp/wp4013142.jpg')"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notepad Window (Keep existing) -->
+        <div id="win-notepad" class="window" style="width: 500px; height: 350px; top: 100px; left: 150px;">
+             <div class="window-header" onmousedown="initDrag(event, 'win-notepad')" ontouchstart="initDrag(event, 'win-notepad')">
+                <div class="window-title">Notepad</div>
+                <div class="window-controls">
+                    <div class="control-btn close" onclick="closeApp('notepad')">✕</div>
+                </div>
+            </div>
+            <textarea id="notepad-content" style="flex:1; border:none; padding:10px; outline:none;"></textarea>
+        </div>
+    </div>
+
+    <!-- Taskbar -->
+    <div id="taskbar">
+        <div class="start-btn">
+            <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#00adef" d="M0 6.6l19.5-2.6v19.4H0V6.6zM0 25.1h19.5V44L0 41.4V25.1zM21.3 3.7L48 0v23.4H21.3V3.7zM21.3 25.1H48V48l-26.7-3.7V25.1z"/></svg>
+        </div>
+        <div class="system-tray">
+            <div id="clock">12:00 PM</div>
+        </div>
+    </div>
+
+    <!-- Virtual Cursor -->
+    <svg id="virtual-cursor" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M7 2L24 16L15.5 17.5L21 24.5L18.5 26.5L13 19.5L7 26V2Z" fill="white" stroke="black" stroke-width="2" stroke-linejoin="round"/>
+    </svg>
+
+    <div id="toast">Wallpaper updated!</div>
+
+    <script>
+        let zIndex = 100;
+
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        function setWallpaper(url) {
+            document.body.style.backgroundImage = `url('${url}')`;
+            document.getElementById('active-wp-preview').style.backgroundImage = `url('${url}')`;
+            localStorage.setItem('win10_wallpaper', url);
+            showToast('Wallpaper updated!');
+        }
+
+        function openApp(app) {
+            const win = document.getElementById('win-' + app);
+            win.style.display = 'flex';
+            win.style.zIndex = ++zIndex;
+        }
+
+        function closeApp(app) {
+            document.getElementById('win-' + app).style.display = 'none';
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.display = 'block';
+            setTimeout(() => toast.style.display = 'none', 2500);
+        }
+
+        // Dragging Logic
+        let activeWin = null;
+        let offset = { x: 0, y: 0 };
+
+        function initDrag(e, id) {
+            activeWin = document.getElementById(id);
+            activeWin.style.zIndex = ++zIndex;
+            const clientX = e.clientX || e.touches?.[0].clientX;
+            const clientY = e.clientY || e.touches?.[0].clientY;
+            offset.x = clientX - activeWin.offsetLeft;
+            offset.y = clientY - activeWin.offsetTop;
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', stopDrag);
+            document.addEventListener('touchmove', drag, { passive: false });
+            document.addEventListener('touchend', stopDrag);
+        }
+
+        function drag(e) {
+            if (!activeWin) return;
+            const clientX = e.clientX || e.touches?.[0].clientX;
+            const clientY = e.clientY || e.touches?.[0].clientY;
+            activeWin.style.left = (clientX - offset.x) + 'px';
+            activeWin.style.top = (clientY - offset.y) + 'px';
+        }
+
+        function stopDrag() {
+            activeWin = null;
+            document.removeEventListener('mousemove', drag);
+            document.removeEventListener('mouseup', stopDrag);
+            document.removeEventListener('touchmove', drag);
+            document.removeEventListener('touchend', stopDrag);
+        }
+
+        // Virtual Cursor
+        const vCursor = document.getElementById('virtual-cursor');
+        document.addEventListener('touchstart', (e) => {
+            vCursor.style.display = 'block';
+            updateVCursor(e);
+        });
+        document.addEventListener('touchmove', (e) => updateVCursor(e));
+        function updateVCursor(e) {
+            const touch = e.touches[0];
+            vCursor.style.left = touch.pageX + 'px';
+            vCursor.style.top = touch.pageY + 'px';
+        }
+
+        window.onload = () => {
+            const savedWp = localStorage.getItem('win10_wallpaper') || 'https://wallpapercave.com/wp/wp4504149.png';
+            document.body.style.backgroundImage = `url('${savedWp}')`;
+            document.getElementById('active-wp-preview').style.backgroundImage = `url('${savedWp}')`;
+        };
+    </script>
+</body>
+</html>
