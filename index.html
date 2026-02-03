@@ -1,40 +1,171 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ragdoll Strike Mobile</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: #1a1a1a;
-            font-family: sans-serif;
-            touch-action: none;
-        }
-        #ui {
-            position: absolute;
-            top: 20px;
-            width: 100%;
-            display: flex;
-            justify-content: space-around;
-            pointer-events: none;
-            color: white;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-        .health-bar {
-            width: 150px;
-            height: 15px;
-            background: #444;
-            border: 2px solid #fff;
-        }
-        .health-fill {
-            width: 100%;
-            height: 100%;
-            background: #ff3e3e;
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width,height=device-height,initial-scale=1.0,user-scalable=no">
+
+<title>Ragdoll Fists Mobile</title>
+
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #111;
+  touch-action: none;
+  user-select: none;
+}
+
+#ui {
+  position: fixed;
+  top: 10px;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+  color: white;
+  font-family: sans-serif;
+  z-index: 10;
+}
+
+.bar {
+  width: 40%;
+  height: 14px;
+  background: #333;
+}
+
+.fill {
+  height: 100%;
+  background: red;
+}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <div>
+    PLAYER
+    <div class="bar"><div id="php" class="fill"></div></div>
+  </div>
+  <div>
+    ENEMY
+    <div class="bar"><div id="ehp" class="fill"></div></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script>
+const { Engine, Render, World, Bodies, Body, Constraint } = Matter;
+
+const engine = Engine.create();
+engine.world.gravity.y = 1.2;
+
+const render = Render.create({
+  element: document.body,
+  engine,
+  options: {
+    wireframes: false,
+    background: "#111"
+  }
+});
+
+function resize() {
+  render.canvas.width = document.documentElement.clientWidth;
+  render.canvas.height = document.documentElement.clientHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+const ground = Bodies.rectangle(
+  render.canvas.width / 2,
+  render.canvas.height - 30,
+  render.canvas.width,
+  60,
+  { isStatic: true }
+);
+
+World.add(engine.world, ground);
+
+function ragdoll(x, y, color) {
+  const torso = Bodies.rectangle(x, y, 30, 50);
+  const head = Bodies.circle(x, y - 40, 15);
+  const armL = Bodies.rectangle(x - 25, y, 40, 10);
+  const armR = Bodies.rectangle(x + 25, y, 40, 10);
+  const legL = Bodies.rectangle(x - 10, y + 50, 10, 40);
+  const legR = Bodies.rectangle(x + 10, y + 50, 10, 40);
+
+  const parts = [torso, head, armL, armR, legL, legR];
+  parts.forEach(p => p.render.fillStyle = color);
+
+  const joints = [
+    Constraint.create({ bodyA: torso, bodyB: head, length: 10 }),
+    Constraint.create({ bodyA: torso, bodyB: armL, length: 25 }),
+    Constraint.create({ bodyA: torso, bodyB: armR, length: 25 }),
+    Constraint.create({ bodyA: torso, bodyB: legL, length: 30 }),
+    Constraint.create({ bodyA: torso, bodyB: legR, length: 30 })
+  ];
+
+  World.add(engine.world, [...parts, ...joints]);
+
+  return { torso, head, armL, armR, legL, legR };
+}
+
+const player = ragdoll(150, 300, "red");
+const enemy  = ragdoll(350, 300, "dodgerblue");
+
+let php = 100, ehp = 100;
+
+function updateHP() {
+  document.getElementById("php").style.width = php + "%";
+  document.getElementById("ehp").style.width = ehp + "%";
+}
+
+updateHP();
+
+/* --- Touch Controls --- */
+let sx = 0, sy = 0;
+
+document.addEventListener("touchstart", e => {
+  sx = e.touches[0].clientX;
+  sy = e.touches[0].clientY;
+});
+
+document.addEventListener("touchend", e => {
+  const dx = e.changedTouches[0].clientX - sx;
+  const dy = e.changedTouches[0].clientY - sy;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    if (dx > 40) Body.applyForce(player.torso, player.torso.position, { x: 0.05, y: 0 });
+    if (dx < -40) Body.applyForce(player.torso, player.torso.position, { x: -0.05, y: 0 });
+  } else {
+    if (dy < -40) Body.applyForce(player.torso, player.torso.position, { x: 0, y: -0.15 });
+    if (dy > 40) Body.scale(player.torso, 1, 0.8);
+  }
+
+  if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
+    const limb = Math.random() > 0.5 ? player.armR : player.legR;
+    Body.applyForce(limb, limb.position, { x: 0.15, y: -0.05 });
+    ehp = Math.max(0, ehp - 5);
+    updateHP();
+  }
+});
+
+/* Enemy AI */
+setInterval(() => {
+  Body.applyForce(enemy.torso, enemy.torso.position, { x: -0.02, y: 0 });
+  if (Math.random() < 0.3) {
+    Body.applyForce(enemy.armL, enemy.armL.position, { x: -0.1, y: -0.05 });
+    php = Math.max(0, php - 3);
+    updateHP();
+  }
+}, 600);
+
+Engine.run(engine);
+Render.run(render);
+</script>
+</body>
+</html>            background: #ff3e3e;
             transition: width 0.2s;
         }
         #instructions {
