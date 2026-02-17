@@ -27,7 +27,7 @@
                 <i class="fa-solid fa-bolt text-white"></i>
             </div>
             <div>
-                <h1 class="font-semibold text-lg">Gemini 2.5 Pro</h1>
+                <h1 class="font-semibold text-lg">Gemini AI</h1>
                 <p id="status-text" class="text-xs text-green-400 flex items-center gap-1">
                     <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Online
                 </p>
@@ -42,7 +42,7 @@
         <div class="flex flex-col items-center justify-center h-full text-center space-y-4 text-gray-500" id="welcome-screen">
             <i class="fa-solid fa-microchip text-5xl mb-2 text-blue-500/50"></i>
             <h2 class="text-xl font-medium text-gray-300">Ready to assist, Trivathan</h2>
-            <p class="max-w-xs text-sm px-4">I can help with HTML, Python, or explain your 6th grade science!</p>
+            <p class="max-w-xs text-sm px-4">I updated the model to be more stable. Try sending a message!</p>
         </div>
     </main>
 
@@ -71,8 +71,12 @@
     </footer>
 
     <script>
-        const apiKey = "AIzaSyBtWTgXoxKKaLovtamEwa_6zpZCfPZTpvE"; // <--- RE-PASTE YOUR KEY HERE
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        // --- CONFIGURATION ---
+        const apiKey = ""; // <--- PASTE YOUR KEY HERE
+        
+        // Use gemini-1.5-flash for the best stability
+        const modelName = "gemini-1.5-flash"; 
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
         const chatWindow = document.getElementById('chat-window');
         const userInput = document.getElementById('user-input');
@@ -84,7 +88,7 @@
         let chatHistory = [];
 
         function addMessage(text, isUser = false, isError = false) {
-            if (welcomeScreen) welcomeScreen.remove();
+            if (welcomeScreen && document.getElementById('welcome-screen')) welcomeScreen.remove();
             const messageDiv = document.createElement('div');
             messageDiv.className = `flex ${isUser ? 'justify-end' : 'justify-start'} message-appear`;
             
@@ -101,7 +105,7 @@
             const prompt = userInput.value.trim();
             if (!prompt) return;
             if (!apiKey) {
-                addMessage("Missing API Key! Please paste your key in the HTML code.", false, true);
+                addMessage("Error: Missing API Key! Please paste your Gemini API key in the code.", false, true);
                 return;
             }
 
@@ -113,7 +117,7 @@
             chatHistory.push({ role: "user", parts: [{ text: prompt }] });
 
             let retries = 0;
-            const maxRetries = 5;
+            const maxRetries = 3;
 
             while (retries < maxRetries) {
                 try {
@@ -126,13 +130,20 @@
                     const data = await response.json();
 
                     if (!response.ok) {
-                        const errorMsg = data.error?.message || "Unknown API error";
-                        // If it's a rate limit error (429), we should wait
-                        if (response.status === 429) throw new Error("Rate limited - waiting...");
-                        throw new Error(errorMsg);
+                        // Detailed error logging for debugging
+                        const errorCode = response.status;
+                        const errorMsg = data.error?.message || "Check your internet or API key.";
+                        
+                        if (errorCode === 429) {
+                            throw new Error("Rate limit reached. Please wait a minute.");
+                        } else if (errorCode === 400) {
+                            throw new Error("Invalid request. Try a different question.");
+                        } else {
+                            throw new Error(`API Error (${errorCode}): ${errorMsg}`);
+                        }
                     }
 
-                    const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
+                    const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Gemini sent an empty response.";
                     showLoading(false);
                     addMessage(aiText, false);
                     chatHistory.push({ role: "model", parts: [{ text: aiText }] });
@@ -142,10 +153,10 @@
                     retries++;
                     if (retries === maxRetries) {
                         showLoading(false);
-                        addMessage(`Error: ${error.message}. Try checking your API quota in Google AI Studio.`, false, true);
+                        addMessage(error.message, false, true);
                     } else {
-                        const waitTime = Math.pow(2, retries) * 1000;
-                        document.getElementById('thinking-msg').innerText = `Error detected. Retrying in ${waitTime/1000}s`;
+                        const waitTime = retries * 2000;
+                        document.getElementById('thinking-msg').innerText = `Retrying... (${retries})`;
                         await new Promise(r => setTimeout(r, waitTime));
                     }
                 }
