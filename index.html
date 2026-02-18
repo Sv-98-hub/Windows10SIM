@@ -2,38 +2,287 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gemini AI Chat</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #0b0b0b; overscroll-behavior-y: contain; }
-        .chat-container { height: calc(100vh - 80px); }
-        .message-appear { animation: fadeInUp 0.3s ease-out forwards; }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .typing-dot { animation: blink 1.4s infinite both; }
-        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes blink { 0% { opacity: 0.2; } 20% { opacity: 1; } 100% { opacity: 0.2; } }
-        .glass { background: rgba(23, 23, 23, 0.8); backdrop-filter: blur(12px); border-top: 1px solid rgba(255, 255, 255, 0.1); }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #212121;
+        }
+
+        .chat-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-container::-webkit-scrollbar-thumb {
+            background-color: #424242;
+            border-radius: 10px;
+        }
+
+        .typing-indicator span {
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 0.2; }
+            50% { opacity: 1; }
+        }
+
+        .message-user {
+            background-color: #2f2f2f;
+        }
+
+        .code-block {
+            background-color: #0d0d0d;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            font-family: monospace;
+            overflow-x: auto;
+        }
     </style>
 </head>
-<body class="text-gray-100 flex flex-col h-screen">
+<body class="text-gray-100 h-screen flex overflow-hidden">
 
-    <header class="p-4 border-b border-white/10 flex items-center justify-between bg-[#0b0b0b] sticky top-0 z-10">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center">
-                <i class="fa-solid fa-bolt text-white"></i>
+    <!-- Sidebar (Hidden on mobile by default) -->
+    <aside id="sidebar" class="w-64 bg-[#171717] flex-shrink-0 flex flex-col hidden md:flex">
+        <div class="p-4">
+            <button onclick="createNewChat()" class="w-full flex items-center justify-between p-3 rounded-lg border border-gray-600 hover:bg-[#2f2f2f] transition-colors">
+                <span class="text-sm font-medium">New Chat</span>
+                <i class="fa-regular fa-pen-to-square"></i>
+            </button>
+        </div>
+        <div class="flex-grow overflow-y-auto px-2 space-y-1" id="chat-history">
+            <!-- History items go here -->
+        </div>
+        <div class="p-4 border-t border-gray-700">
+            <div class="flex items-center space-x-3 p-2 rounded-lg hover:bg-[#2f2f2f] cursor-pointer">
+                <div class="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">U</div>
+                <span class="text-sm">User Account</span>
             </div>
-            <div>
-                <h1 class="font-semibold text-lg">Gemini AI</h1>
-                <p id="status-text" class="text-xs text-green-400 flex items-center gap-1">
-                    <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Online
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-grow flex flex-col relative h-full">
+        <!-- Header -->
+        <header class="p-4 flex items-center justify-between md:justify-center">
+            <button class="md:hidden text-gray-400" onclick="toggleSidebar()">
+                <i class="fa-solid fa-bars text-xl"></i>
+            </button>
+            <h1 class="text-lg font-semibold text-gray-300">Gemini 2.5 Flash</h1>
+            <div class="w-8 md:hidden"></div>
+        </header>
+
+        <!-- Messages Area -->
+        <div id="chat-display" class="flex-grow overflow-y-auto chat-container">
+            <div id="welcome-screen" class="h-full flex flex-col items-center justify-center text-center p-6">
+                <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-4">
+                    <img src="https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304653392364ecad.svg" alt="Gemini" class="w-8">
+                </div>
+                <h2 class="text-2xl font-semibold mb-8">How can I help you today?</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl w-full text-left">
+                    <button onclick="setPrompt('Help me write a professional email')" class="p-4 border border-gray-700 rounded-xl hover:bg-[#2f2f2f] transition-all text-sm text-gray-400">
+                        Help me write a professional email...
+                    </button>
+                    <button onclick="setPrompt('Explain quantum physics like I\'m five')" class="p-4 border border-gray-700 rounded-xl hover:bg-[#2f2f2f] transition-all text-sm text-gray-400">
+                        Explain quantum physics like I'm five...
+                    </button>
+                </div>
+            </div>
+            <div id="messages-list" class="flex flex-col pb-32"></div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-[#212121] via-[#212121] to-transparent">
+            <div class="max-w-3xl mx-auto relative">
+                <div class="relative flex items-end w-full bg-[#2f2f2f] rounded-2xl border border-gray-700 focus-within:border-gray-500 transition-all">
+                    <textarea 
+                        id="user-input"
+                        rows="1"
+                        placeholder="Message Gemini..."
+                        class="w-full bg-transparent border-none focus:ring-0 resize-none py-4 px-4 text-gray-100 max-h-48"
+                        oninput="autoGrow(this)"
+                    ></textarea>
+                    <button 
+                        id="send-btn"
+                        onclick="sendMessage()"
+                        class="mb-2 mr-2 p-2 bg-white text-black rounded-xl hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled
+                    >
+                        <i class="fa-solid fa-arrow-up"></i>
+                    </button>
+                </div>
+                <p class="text-center text-[11px] text-gray-500 mt-3">
+                    Gemini can make mistakes. Check important info.
                 </p>
             </div>
         </div>
-        <button onclick="clearChat()" class="text-gray-400 hover:text-white transition-colors">
+    </main>
+
+    <script>
+        const apiKey = "AIzaSyAq2HFBkHZdbZbRnKn-9vNrZWlu3EjmXrs";
+        const model = "gemini-2.5-flash-preview-09-2025";
+        const chatDisplay = document.getElementById('chat-display');
+        const messagesList = document.getElementById('messages-list');
+        const welcomeScreen = document.getElementById('welcome-screen');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        let chatHistory = [];
+
+        // Enable/Disable button based on input
+        userInput.addEventListener('input', () => {
+            sendBtn.disabled = !userInput.value.trim();
+        });
+
+        // Enter key to send
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        function autoGrow(element) {
+            element.style.height = "5px";
+            element.style.height = (element.scrollHeight) + "px";
+        }
+
+        function setPrompt(text) {
+            userInput.value = text;
+            autoGrow(userInput);
+            sendBtn.disabled = false;
+            sendMessage();
+        }
+
+        function createMessageElement(role, text) {
+            const isUser = role === 'user';
+            const wrapper = document.createElement('div');
+            wrapper.className = `w-full py-8 ${isUser ? '' : 'bg-[#171717]'}`;
+            
+            const container = document.createElement('div');
+            container.className = 'max-w-3xl mx-auto px-4 flex gap-4';
+            
+            const avatar = document.createElement('div');
+            avatar.className = `w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold ${isUser ? 'bg-purple-600' : 'bg-emerald-600'}`;
+            avatar.innerHTML = isUser ? 'U' : '<img src="https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304653392364ecad.svg" class="w-5">';
+            
+            const content = document.createElement('div');
+            content.className = 'flex-grow text-gray-200 leading-relaxed overflow-hidden';
+            
+            // Basic Markdown-ish formatting
+            const formattedText = text
+                .replace(/```([\s\S]*?)```/g, '<div class="code-block">$1</div>')
+                .replace(/\n/g, '<br>');
+            
+            content.innerHTML = `<div class="font-bold mb-1 text-sm">${isUser ? 'You' : 'Gemini'}</div><div>${formattedText}</div>`;
+            
+            container.appendChild(avatar);
+            container.appendChild(content);
+            wrapper.appendChild(container);
+            return wrapper;
+        }
+
+        async function fetchWithRetry(url, options, retries = 5, delay = 1000) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    if (response.status === 429 && retries > 0) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        return fetchWithRetry(url, options, retries - 1, delay * 2);
+                    }
+                    throw new Error(`API Error: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                if (retries > 0) {
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return fetchWithRetry(url, options, retries - 1, delay * 2);
+                }
+                throw error;
+            }
+        }
+
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            // Clear input
+            userInput.value = '';
+            userInput.style.height = 'auto';
+            sendBtn.disabled = true;
+            welcomeScreen.classList.add('hidden');
+
+            // Add User Message to UI
+            messagesList.appendChild(createMessageElement('user', text));
+            
+            // Scroll to bottom
+            chatDisplay.scrollTop = chatDisplay.scrollHeight;
+
+            // Add Typing Indicator
+            const typingIndicator = createMessageElement('ai', '<span class="typing-indicator"><span>●</span> <span>●</span> <span>●</span></span>');
+            messagesList.appendChild(typingIndicator);
+            chatDisplay.scrollTop = chatDisplay.scrollHeight;
+
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                
+                const payload = {
+                    contents: [
+                        ...chatHistory,
+                        { role: "user", parts: [{ text: text }] }
+                    ]
+                };
+
+                const result = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const aiResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
+                
+                // Update History
+                chatHistory.push({ role: "user", parts: [{ text: text }] });
+                chatHistory.push({ role: "model", parts: [{ text: aiResponse }] });
+
+                // Replace typing indicator with real message
+                messagesList.removeChild(typingIndicator);
+                messagesList.appendChild(createMessageElement('ai', aiResponse));
+                
+            } catch (error) {
+                messagesList.removeChild(typingIndicator);
+                const errorBox = document.createElement('div');
+                errorBox.className = 'max-w-3xl mx-auto p-4 m-4 bg-red-900/20 border border-red-500 rounded-lg text-red-200 text-sm';
+                errorBox.innerText = "Error: " + error.message + ". Please try again later.";
+                messagesList.appendChild(errorBox);
+            }
+
+            chatDisplay.scrollTop = chatDisplay.scrollHeight;
+        }
+
+        function createNewChat() {
+            messagesList.innerHTML = '';
+            welcomeScreen.classList.remove('hidden');
+            chatHistory = [];
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('hidden');
+            sidebar.classList.toggle('absolute');
+            sidebar.classList.toggle('z-50');
+            sidebar.classList.toggle('h-full');
+        }
+    </script>
+</body>
+</html>
+
             <i class="fa-solid fa-rotate-right"></i>
         </button>
     </header>
